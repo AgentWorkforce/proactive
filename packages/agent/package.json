@@ -29,7 +29,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/AgentWorkforce/relay.git",
+    "url": "git+https://github.com/AgentWorkforce/proactive.git",
     "directory": "packages/agent"
   },
   "publishConfig": {
