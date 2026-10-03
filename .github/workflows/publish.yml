@@ -50,6 +50,11 @@ permissions:
 
 env:
   NPM_CONFIG_FUND: false
+  # Pin npm to a major line rather than @latest: new npm majors raise the
+  # Node engine floor (npm 12 requires Node >=22.22.2), which breaks publish
+  # on the pinned Node 22.14.0. npm 11 (>=11.5.1) supports provenance and
+  # trusted publishing.
+  NPM_VERSION: "11"
 
 jobs:
   build:
@@ -184,7 +189,7 @@ jobs:
           path: .
 
       - name: Update npm for OIDC support
-        run: npm install -g npm@latest
+        run: npm install -g npm@${{ env.NPM_VERSION }}
 
       - name: Dry run check
         if: github.event.inputs.dry_run == 'true'
@@ -224,7 +229,7 @@ jobs:
           path: .
 
       - name: Update npm for OIDC support
-        run: npm install -g npm@latest
+        run: npm install -g npm@${{ env.NPM_VERSION }}
 
       - name: Resolve package path
         id: resolve-package
