@@ -139,6 +139,25 @@ jobs:
           # the release commit keeps `npm ci` working.
           npm install --package-lock-only --ignore-scripts --no-audit --no-fund
 
+          # Fail the build (before anything is published or committed) if the
+          # regenerated lockfile disagrees with the bumped manifests. `npm ci`
+          # tolerates stale workspace entries, so check them explicitly.
+          node -e "
+            const fs = require('fs');
+            const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8')).packages;
+            const problems = [];
+            for (const dir of ['packages/events', 'packages/agent', 'packages/memory']) {
+              const pkg = JSON.parse(fs.readFileSync(dir + '/package.json', 'utf8'));
+              const entry = lock[dir] || {};
+              if (entry.version !== pkg.version) problems.push(dir + ': lock version ' + entry.version + ' != ' + pkg.version);
+              for (const [dep, spec] of Object.entries(pkg.dependencies || {})) {
+                if ((entry.dependencies || {})[dep] !== spec) problems.push(dir + ': lock dep ' + dep + ' ' + (entry.dependencies || {})[dep] + ' != ' + spec);
+              }
+            }
+            if (problems.length) { console.error(problems.join('\\n')); process.exit(1); }
+            console.log('package-lock.json matches the bumped manifests');
+          "
+
       - name: Build packages
         run: |
           npm run build --workspace=packages/events
