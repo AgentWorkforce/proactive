@@ -135,6 +135,10 @@ jobs:
             }
           "
 
+          # Re-sync the committed lockfile with the bumped workspace manifests so
+          # the release commit keeps `npm ci` working.
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
       - name: Build packages
         run: |
           npm run build --workspace=packages/events
@@ -147,6 +151,7 @@ jobs:
           name: build-output
           path: |
             package.json
+            package-lock.json
             packages/events/package.json
             packages/events/dist/
             packages/agent/package.json
@@ -290,6 +295,7 @@ jobs:
 
           git add \
             package.json \
+            package-lock.json \
             packages/events/package.json \
             packages/agent/package.json \
             packages/memory/package.json
