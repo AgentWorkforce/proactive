@@ -50,6 +50,11 @@ permissions:
 
 env:
   NPM_CONFIG_FUND: false
+  # Pin npm to a major line rather than @latest: new npm majors raise the
+  # Node engine floor (npm 12 requires Node >=22.22.2), which breaks publish
+  # on the pinned Node 22.14.0. npm 11 (>=11.5.1) supports provenance and
+  # trusted publishing.
+  NPM_VERSION: "11"
 
 jobs:
   build:
@@ -81,18 +86,22 @@ jobs:
           CUSTOM_VERSION="${{ github.event.inputs.custom_version }}"
           VERSION_TYPE="${{ github.event.inputs.version }}"
           PREID="${{ github.event.inputs.preid }}"
-          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          # The published packages release in lockstep on their own line (7.x);
+          # the private root package.json keeps its own 0.x version. Bump from
+          # the packages' version (events), then sync the rest below.
+          VERSION_SOURCE=packages/events
+          CURRENT_VERSION=$(node -p "require('./$VERSION_SOURCE/package.json').version")
           echo "Current version: $CURRENT_VERSION"
 
           if [ -n "$CUSTOM_VERSION" ]; then
             echo "Setting version to custom value: $CUSTOM_VERSION"
-            npm version "$CUSTOM_VERSION" --no-git-tag-version --allow-same-version
+            npm version "$CUSTOM_VERSION" --workspace "$VERSION_SOURCE" --no-git-tag-version --allow-same-version
           else
             echo "Bumping version: $VERSION_TYPE (preid=$PREID)"
-            npm version "$VERSION_TYPE" --no-git-tag-version --preid="$PREID"
+            npm version "$VERSION_TYPE" --workspace "$VERSION_SOURCE" --no-git-tag-version --preid="$PREID"
           fi
 
-          NEW_VERSION=$(node -p "require('./package.json').version")
+          NEW_VERSION=$(node -p "require('./$VERSION_SOURCE/package.json').version")
           echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
           echo "New version: $NEW_VERSION"
 
@@ -130,6 +139,29 @@ jobs:
             }
           "
 
+          # Re-sync the committed lockfile with the bumped workspace manifests so
+          # the release commit keeps `npm ci` working.
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+          # Fail the build (before anything is published or committed) if the
+          # regenerated lockfile disagrees with the bumped manifests. `npm ci`
+          # tolerates stale workspace entries, so check them explicitly.
+          node -e "
+            const fs = require('fs');
+            const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8')).packages;
+            const problems = [];
+            for (const dir of ['packages/events', 'packages/agent', 'packages/memory']) {
+              const pkg = JSON.parse(fs.readFileSync(dir + '/package.json', 'utf8'));
+              const entry = lock[dir] || {};
+              if (entry.version !== pkg.version) problems.push(dir + ': lock version ' + entry.version + ' != ' + pkg.version);
+              for (const [dep, spec] of Object.entries(pkg.dependencies || {})) {
+                if ((entry.dependencies || {})[dep] !== spec) problems.push(dir + ': lock dep ' + dep + ' ' + (entry.dependencies || {})[dep] + ' != ' + spec);
+              }
+            }
+            if (problems.length) { console.error(problems.join('\\n')); process.exit(1); }
+            console.log('package-lock.json matches the bumped manifests');
+          "
+
       - name: Build packages
         run: |
           npm run build --workspace=packages/events
@@ -142,6 +174,7 @@ jobs:
           name: build-output
           path: |
             package.json
+            package-lock.json
             packages/events/package.json
             packages/events/dist/
             packages/agent/package.json
@@ -184,7 +217,7 @@ jobs:
           path: .
 
       - name: Update npm for OIDC support
-        run: npm install -g npm@latest
+        run: npm install -g npm@${{ env.NPM_VERSION }}
 
       - name: Dry run check
         if: github.event.inputs.dry_run == 'true'
@@ -224,7 +257,7 @@ jobs:
           path: .
 
       - name: Update npm for OIDC support
-        run: npm install -g npm@latest
+        run: npm install -g npm@${{ env.NPM_VERSION }}
 
       - name: Resolve package path
         id: resolve-package
@@ -285,6 +318,7 @@ jobs:
 
           git add \
             package.json \
+            package-lock.json \
             packages/events/package.json \
             packages/agent/package.json \
             packages/memory/package.json

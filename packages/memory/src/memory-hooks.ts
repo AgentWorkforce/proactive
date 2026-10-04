@@ -13,7 +13,7 @@ import type {
   SessionEndContext,
   OutputContext,
   HookResult,
-} from '@agent-relay/hooks';
+} from './hook-types.js';
 import type { MemoryAdapter, MemoryConfig, MemoryEntry } from './types.js';
 import { createMemoryAdapter } from './factory.js';
 
