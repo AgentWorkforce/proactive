@@ -5,7 +5,8 @@
 #
 # It runs the same checks as test.yml (plus build and typecheck), then packs
 # @agent-relay/events, @agent-relay/agent and @agent-relay/memory at
-# <version>-fast.<sha7> and uploads the tarballs as a workflow artifact.
+# <version>-fast.<sha7> (g<sha7> if the
+# short SHA is all digits) and uploads the tarballs as a workflow artifact.
 # It does not publish to npm: these packages use npm trusted publishing (OIDC)
 # bound to publish.yml, so only that workflow can publish. It never moves a
 # dist-tag, commits, tags or creates a release.
